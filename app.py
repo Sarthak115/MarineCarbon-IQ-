@@ -129,10 +129,15 @@ if st.button("🚀 Predict Fuel Consumption"):
 
             with top2:
                 fig2, ax2 = plt.subplots(figsize=(4, 3))
-                df.groupby('ship_type')['fuel_consumption'].mean().sort_values().plot(kind='barh', ax=ax2)
-                ax2.set_title("Avg Fuel by Ship Type", fontsize=10)
-                ax2.tick_params(labelsize=8)
-                st.pyplot(fig2, use_container_width=True)
+                grouped = df.dropna(subset=["ship_type", "fuel_consumption"]).groupby('ship_type')['fuel_consumption'].mean().sort_values()
+                if not grouped.empty:
+                  grouped.plot(kind='barh', ax=ax2)
+                  ax2.set_title("Avg Fuel by Ship Type", fontsize=10)
+                else:
+                   ax2.text(0.5, 0.5, "No valid data to display", ha='center', va='center', fontsize=9)
+            ax2.tick_params(labelsize=8)
+            st.pyplot(fig2, use_container_width=True)
+
 
             with bottom1:
                 fig3, ax3 = plt.subplots(figsize=(4, 3))
