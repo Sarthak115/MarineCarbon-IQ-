@@ -1,71 +1,69 @@
 import streamlit as st
 import pandas as pd
-import joblib
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-# Load model and preprocessors
-model_data = joblib.load("fuel_predictor.pkl")
-model = model_data['model']
-scaler = model_data['scaler']
-encoders = model_data['encoders']
-features = model_data['features']
+st.set_page_config(page_title="🚢 Fuel Dashboard", layout="wide")
+st.title("📊 Ship Fuel Analytics Dashboard")
 
-# Emission factors (tons CO2 / ton fuel)
-emission_factors = {
-    'HFO': 3.114,
-    'MGO': 3.206,
-    'LNG': 2.750
-}
+# Load the historical CSV data
+df = pd.read_csv("ship_fuel_efficiency.csv")
+df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
+df = df.dropna()
 
-# CII grading thresholds (example, adjust if needed)
-cii_grades = {
-    'A': lambda x: x <= 5,
-    'B': lambda x: 5 < x <= 10,
-    'C': lambda x: 10 < x <= 15,
-    'D': lambda x: 15 < x <= 20,
-    'E': lambda x: x > 20
-}
+# Emission Factors (tons CO₂/ton fuel)
+emission_factors = {'HFO': 3.114, 'MGO': 3.206, 'LNG': 2.750}
 
-st.title("🚢 Ship Fuel Consumption & Emission Calculator")
+df['emission_factor'] = df['fuel_type'].map(emission_factors)
+df['co2_emitted'] = df['fuel_consumption'] * df['emission_factor']
 
-# Inputs
-ship_type = st.selectbox("Ship Type", encoders['ship_type'].classes_)
-fuel_type = st.selectbox("Fuel Type", encoders['fuel_type'].classes_)
-route_id = st.selectbox("Route ID", encoders['route_id'].classes_)
-month = st.selectbox("Month", encoders['month'].classes_)
-weather = st.selectbox("Weather Conditions", encoders['weather_conditions'].classes_)
-distance = st.number_input("Distance Travelled (NM)", min_value=0.0, key="distance")
-cargo_weight = st.number_input("Cargo Weight (tons)", min_value=0.0, key="cargo_weight")
+# Ask for cargo weight input to calculate EEOI & CII
+with st.sidebar:
+    cargo_weight = st.number_input("Enter average Cargo Weight (tons)", value=10000.0)
 
-if st.button("Predict Fuel Consumption & Calculate Emissions"):
+# Calculate EEOI and CII
+df['eeoi'] = df['co2_emitted'] / (cargo_weight * df['distance'])
+df['cii'] = (df['co2_emitted'] * 1_000_000) / (cargo_weight * df['distance'])
 
-    # Prepare input for prediction
-    input_data = pd.DataFrame([{
-        'ship_type': encoders['ship_type'].transform([ship_type])[0],
-        'fuel_type': encoders['fuel_type'].transform([fuel_type])[0],
-        'route_id': encoders['route_id'].transform([route_id])[0],
-        'month': encoders['month'].transform([month])[0],
-        'weather_conditions': encoders['weather_conditions'].transform([weather])[0],
-        'distance': distance
-    }])
+# Assign CII Grades
+def get_cii_grade(cii):
+    if cii < 5:
+        return 'A'
+    elif cii < 10:
+        return 'B'
+    elif cii < 15:
+        return 'C'
+    elif cii < 20:
+        return 'D'
+    else:
+        return 'E'
 
-    # Scale numeric features
-    input_data[scaler.feature_names_in_] = scaler.transform(input_data[scaler.feature_names_in_])
-    input_data = input_data[features]
+df['cii_grade'] = df['cii'].apply(get_cii_grade)
 
-    # Predict fuel consumption
-    fuel_used = model.predict(input_data)[0]
+# Section 1: Fuel vs Distance by Ship Type
+st.subheader("🛢️ Fuel Consumption vs Distance")
+fig1, ax1 = plt.subplots(figsize=(10, 5))
+sns.scatterplot(data=df, x='distance', y='fuel_consumption', hue='ship_type', alpha=0.6, ax=ax1)
+ax1.set_xlabel("Distance (NM)")
+ax1.set_ylabel("Fuel Consumption (MT)")
+ax1.set_title("Fuel Consumption by Distance Travelled")
+st.pyplot(fig1)
 
-    # Calculate emissions
-    ef = emission_factors.get(fuel_type.upper(), 3.114)  # Default to HFO if not found
-    co2_emitted = fuel_used * ef
-    eeoi = co2_emitted / (cargo_weight * distance) if cargo_weight > 0 and distance > 0 else 0
-    cii = (co2_emitted * 1_000_000) / (cargo_weight * distance) if cargo_weight > 0 and distance > 0 else 0
+# Section 2: Average Fuel by Ship Type
+st.subheader("🚢 Average Fuel Consumption per Ship Type")
+avg_fuel = df.groupby('ship_type')['fuel_consumption'].mean().sort_values(ascending=False)
+st.bar_chart(avg_fuel)
 
-    # Determine CII grade
-    grade = next((g for g, cond in cii_grades.items() if cond(cii)), "Unknown")
+# Section 3: Monthly CO₂ Emissions
+st.subheader("📆 CO₂ Emission Trend by Month")
+monthly = df.groupby('month')['co2_emitted'].mean()
+st.line_chart(monthly)
 
-    # Display results
-    st.success(f"📊 Predicted Fuel Consumption: **{fuel_used:.2f} MT**")
-    st.info(f"🌿 Estimated CO₂ Emissions: **{co2_emitted:.2f} tons**")
-    st.info(f"📉 EEOI: **{eeoi:.4f}**")
-    st.info(f"📈 CII: **{cii:.2f} g/ton·NM** → Grade: **{grade}**")
+# Section 4: CII Grade Distribution
+st.subheader("🏷️ CII Grade Distribution")
+grade_counts = df['cii_grade'].value_counts().sort_index()
+st.bar_chart(grade_counts)
+
+# Footer
+st.markdown("---")
+st.caption("Built with ❤️ using Streamlit | Data from ship_fuel_efficiency.csv")
