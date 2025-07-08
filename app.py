@@ -135,8 +135,8 @@ if st.button("🚀 Predict Fuel Consumption"):
                   ax2.set_title("Avg Fuel by Ship Type", fontsize=10)
                 else:
                    ax2.text(0.5, 0.5, "No valid data to display", ha='center', va='center', fontsize=9)
-            ax2.tick_params(labelsize=8)
-            st.pyplot(fig2, use_container_width=True)
+                ax2.tick_params(labelsize=8)
+                st.pyplot(fig2, use_container_width=True)
 
 
             with bottom1:
