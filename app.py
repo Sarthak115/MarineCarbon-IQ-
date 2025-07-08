@@ -86,7 +86,7 @@ if st.button("🚀 Predict Fuel Consumption"):
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        st.markdown("### 📋 Current Input Summary")
+        st.markdown("### 📋 daily Summary")
         st.write(f"**Ship Type:** {ship_type}")
         st.write(f"**Fuel Type:** {fuel_type}")
         st.write(f"**Route ID:** {route_id}")
